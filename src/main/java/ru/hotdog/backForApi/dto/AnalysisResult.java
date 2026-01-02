@@ -1,14 +1,14 @@
 package ru.hotdog.backForApi.dto;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 
-@Getter
-@Setter
+import java.util.List;
+
+@Data
 public class AnalysisResult {
-
-    private String type;
-    private double confidence;
-    private String message;
-
+    private boolean success;
+    private String error;
+    private ClassificationResult classification;
+    private List<DetectedText> detectedTexts;
+    private String fullText;
 }

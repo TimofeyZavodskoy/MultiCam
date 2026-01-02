@@ -1,25 +1,27 @@
 package ru.hotdog.backForApi.service;
 
 import lombok.AllArgsConstructor;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Map;
 
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class IamService {
 
     private static final String IAM_URL = "https://iam.api.cloud.yandex.net/iam/v1/tokens";
     private final RestTemplate restTemplate = new RestTemplate();
     private final ConvertToTokenService convertService;
 
-    public String getIamToken() throws IOException {
+    @Cacheable(value = "iamToken")
+    public String getIamToken() {
         String jwt = convertService.generateJwt();
 
         HttpHeaders headers = new HttpHeaders();
@@ -28,12 +30,16 @@ public class IamService {
         Map<String, String> body = Map.of("jwt", jwt);
 
         HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headers);
-        ResponseEntity<Map> response = restTemplate.postForEntity(IAM_URL, request, Map.class);
-
+        ResponseEntity<String> response = restTemplate.exchange(IAM_URL, HttpMethod.POST, request, String.class);
         if (!response.getStatusCode().is2xxSuccessful()) {
             throw new RuntimeException("IAM request failed: " + response.getStatusCode().toString());
         }
 
-        return (String) response.getBody().get("iamToken");
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode json = mapper.readTree(response.getBody());
+
+        return json.get("iamToken").asText();
     }
 }
+
+
