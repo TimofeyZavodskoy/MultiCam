@@ -11,4 +11,6 @@ public class AnalysisResult {
     private ClassificationResult classification;
     private List<DetectedText> detectedTexts;
     private String fullText;
+    private String detectedObject;
+    private List<WbProduct> products;
 }

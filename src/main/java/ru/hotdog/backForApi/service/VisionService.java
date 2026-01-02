@@ -16,7 +16,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -28,6 +27,7 @@ public class VisionService {
     private final IamService iamService;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final WbSearchService wbSearchService;
 
     @Value("${yandex.folder-id}")
     private String folderId;
@@ -39,6 +39,21 @@ public class VisionService {
             String jsonResponse = sendRequest(base64Image);
             parseResponse(jsonResponse, result);
             result.setSuccess(true);
+
+            String searchQuery = null;
+
+            if (result.getFullText() != null && !result.getFullText().isBlank()) {
+                searchQuery = result.getFullText().split("\n")[0];
+            }
+            else if (result.getDetectedObject() != null) {
+                searchQuery = result.getDetectedObject();
+            }
+
+            if (searchQuery != null) {
+                log.info("Starting WB search for: {}", searchQuery);
+                var products = wbSearchService.searchProducts(searchQuery);
+                result.setProducts(products);
+            }
         } catch (Exception e) {
             log.error("Error analyzing image", e);
             result.setSuccess(false);
@@ -66,6 +81,9 @@ public class VisionService {
                                                 "textDetectionConfig", Map.of(
                                                         "languageCodes", List.of("en", "ru")
                                                 )
+                                        ),
+                                        Map.of(
+                                                "type", "IMAGE_COPY_SEARCH"
                                         )
                                 )
                         )
@@ -92,6 +110,10 @@ public class VisionService {
 
             if (resultNode.has("textDetection")) {
                 parseTextDetection(resultNode.path("textDetection"), result);
+            }
+
+            if (resultNode.has("objectAnnotation")) {
+                parseObjectDetection(resultNode.path("objectAnnotation"), result);
             }
 
             if (resultNode.has("error")) {
@@ -162,5 +184,38 @@ public class VisionService {
 
         result.setDetectedTexts(detectedTexts);
         result.setFullText(fullText.toString().trim());
+    }
+
+    private void parseObjectDetection(JsonNode objectAnnottation, AnalysisResult result) {
+        JsonNode objects = objectAnnottation.path("objects");
+
+        String bestObject = null;
+        double maxProbability = 0.0;
+
+        for (JsonNode obj : objects) {
+            String name = obj.path("name").asText();
+            double probability = obj.path("probability").asDouble();
+
+            if (probability > maxProbability) {
+                maxProbability = probability;
+                bestObject = name;
+            }
+        }
+
+        if  (bestObject != null) {
+            log.info("Best object detected: {} with probability {}", bestObject,  maxProbability);
+            result.setDetectedObject(translateObject(bestObject));
+        }
+    }
+
+    private String translateObject(String engName) {
+        Map<String, String> dictionary = Map.of(
+                "Sneakers", "Кроссовки",
+                "T-shirt", "Футболка",
+                "Outerwear", "Верхняя одежда",
+                "Bag", "Сумка",
+                "Watch", "Часы"
+        );
+        return dictionary.getOrDefault(engName, engName);
     }
 }
