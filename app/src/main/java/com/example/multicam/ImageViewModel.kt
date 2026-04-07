@@ -2,6 +2,7 @@ package com.example.multicam
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,6 +12,8 @@ import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.net.ConnectException
+import java.net.SocketTimeoutException
 
 class ImageViewModel : ViewModel() {
 
@@ -27,22 +30,32 @@ class ImageViewModel : ViewModel() {
             error = null
             result = null
 
+            // Внутри analyzeImage
             try {
                 val bytes = context.contentResolver
                     .openInputStream(uri)
-                    ?.readBytes()
-                    ?: throw Exception("Не удалось прочитать файл")
+                    ?.readBytes() ?: throw Exception("Не удалось прочитать файл")
 
                 val requestBody = bytes.toRequestBody("image/*".toMediaType())
                 val part = MultipartBody.Part.createFormData("image", "photo.jpg", requestBody)
 
+                // 1. Получаем готовый объект
                 val response = RetrofitClient.api.processImage(part)
-                result = response.string()
+
+                val rawReasoning = response.reasoning
+                val cleanReasoning = if (rawReasoning != null && rawReasoning.contains("'text': '")) {
+                    rawReasoning.substringAfter("'text': '").substringBefore("'")
+                        .replace("\\n", "\n")
+                        .replace("\\\\", "\\")
+                } else {
+                    rawReasoning
+                }
+
+                result = response.solution ?: response.result ?: response.description
 
             } catch (e: Exception) {
-                error = "Ошибка: ${e.message}"
-            } finally {
-                isLoading = false
+                Log.e("ImageViewModel", "Ошибка", e)
+                error = "Ошибка: ${e.localizedMessage}"
             }
         }
     }

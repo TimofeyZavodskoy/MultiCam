@@ -31,20 +31,36 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import android.widget.Toast
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.HorizontalDivider
 
 @Composable
 fun MainScreen(viewModel: ImageViewModel = viewModel(), modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
+    val scrollState = rememberScrollState()
+    var isReasoningVisible by remember { mutableStateOf(false) }
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri -> selectedUri = uri }
 
+    LaunchedEffect(viewModel.error) {
+        viewModel.error?.let { errorMessage ->
+            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(16.dp)
+            .verticalScroll(scrollState),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -92,21 +108,47 @@ fun MainScreen(viewModel: ImageViewModel = viewModel(), modifier: Modifier = Mod
 
             viewModel.error != null -> {
                 Text(
-                    text = viewModel.error!!,
-                    color = MaterialTheme.colorScheme.error
+                    text = viewModel.error!!, color = MaterialTheme.colorScheme.error
                 )
             }
 
             viewModel.result != null -> {
+                val fullText = viewModel.result!!
+
+                val parts = fullText.split("#### Ход мыслей")
+                val solution = parts[0]
+                val reasoning = if (parts.size > 1 ) parts[1] else null
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(
-                        text = viewModel.result!!,
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        MarkdownText(markdown = solution)
+
+                        reasoning?.let {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { isReasoningVisible = !isReasoningVisible },
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Ход решения",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(if (isReasoningVisible) "▲" else "▼")
+                            }
+
+                            AnimatedVisibility(visible = isReasoningVisible) {
+                                MarkdownText(
+                                    markdown = it,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
