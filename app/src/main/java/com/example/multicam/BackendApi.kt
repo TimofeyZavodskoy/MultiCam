@@ -2,10 +2,9 @@ package com.example.multicam
 
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
-import okhttp3.ResponseBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.scalars.ScalarsConverterFactory
+import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
@@ -16,7 +15,7 @@ interface BackendApi {
     @POST("api/ocr/process")
     suspend fun processImage(
         @Part image: MultipartBody.Part
-    ): ResponseBody
+    ): OCRResponse // Поменяли ResponseBody на твой DTO
 }
 
 object RetrofitClient {
@@ -29,8 +28,8 @@ object RetrofitClient {
         .build()
 
     val api: BackendApi = Retrofit.Builder()
-        .baseUrl("http://192.168.0.114:8080/")
-        .addConverterFactory(ScalarsConverterFactory.create())
+        .baseUrl("http://192.168.0.15:8080")
+        .addConverterFactory(GsonConverterFactory.create())
         .client(client)
         .build()
         .create(BackendApi::class.java)
